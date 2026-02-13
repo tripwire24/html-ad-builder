@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { useAd } from '../context/AdContext';
 import { AVAILABLE_SIZES, ANIMATION_PRESETS, AdAssets, FrameLayout } from '../types';
-import { compressImage } from '../utils/compression';
-import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize } from 'lucide-react';
+import { compressImage, base64ToBlob } from '../utils/compression';
+import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize, Clock, WifiOff } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateBannerHTML } from '../utils/generators';
 
@@ -74,7 +74,7 @@ export const Editor: React.FC = () => {
   const { 
     state, toggleSize, addCustomSize, updateCopy, updateDesign, updateAnimation, applyAnimationPreset,
     variations, activeVariationId, setActiveVariation, addVariation, removeVariation, updateVariationName,
-    addFrame, duplicateFrame, removeFrame, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout
+    addFrame, duplicateFrame, removeFrame, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout, updateActiveFrameDuration
   } = useAd();
   
   const [activeTab, setActiveTab] = useState<'layout' | 'assets' | 'design' | 'content'>('layout');
@@ -95,30 +95,111 @@ export const Editor: React.FC = () => {
     }
   };
 
-  const handleExport = async () => {
-    const zip = new JSZip();
-    
-    // Iterate over ALL variations
-    variations.forEach(variation => {
-      // Create a folder for each variation (sanitized name)
-      const varFolderName = variation.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const varFolder = zip.folder(varFolderName);
-
-      variation.selectedSizes.forEach(sizeStr => {
-          const [w, h] = sizeStr.split('x').map(Number);
-          const html = generateBannerHTML(variation, w, h);
-          const sizeFolder = varFolder?.folder(sizeStr);
-          sizeFolder?.file('index.html', html);
-      });
-    });
-
-    const content = await zip.generateAsync({ type: 'blob' });
-    const url = window.URL.createObjectURL(content);
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `banners-complete-set-${Date.now()}.zip`;
+    a.download = filename;
+    document.body.appendChild(a);
     a.click();
+    document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+  };
+
+  const handleExport = async () => {
+    const totalUnits = variations.reduce((acc, v) => acc + v.selectedSizes.length, 0);
+    
+    if (totalUnits === 0) {
+      alert("Please select at least one size to export.");
+      return;
+    }
+
+    const mainZip = new JSZip();
+    const isMultiUnit = totalUnits > 1;
+
+    // Helper to generate a single ad unit zip
+    const createAdUnitZip = async (variation: typeof state, w: number, h: number) => {
+      const unitZip = new JSZip();
+      
+      // Image Extraction Logic
+      const imageMap = new Map<string, string>(); // base64 -> 'assets/img1.png'
+      const assetsFolder = unitZip.folder("assets");
+      let imgCounter = 1;
+
+      // Scan all frames for images
+      variation.frames.forEach(frame => {
+        ['background', 'logo', 'product'].forEach(key => {
+          const base64 = frame.assets[key as keyof AdAssets];
+          if (base64 && !imageMap.has(base64)) {
+             // Determine extension
+             const isPng = base64.startsWith('data:image/png');
+             const ext = isPng ? 'png' : 'jpg';
+             const fileName = `img_${imgCounter}.${ext}`;
+             
+             if (assetsFolder) {
+               assetsFolder.file(fileName, base64ToBlob(base64));
+               imageMap.set(base64, `assets/${fileName}`);
+               imgCounter++;
+             }
+          }
+        });
+      });
+
+      const html = generateBannerHTML(variation, w, h, imageMap);
+      unitZip.file('index.html', html);
+      return unitZip.generateAsync({ type: 'blob' });
+    };
+
+    // CASE 1: Single Unit Export
+    if (totalUnits === 1) {
+      const variation = variations.find(v => v.selectedSizes.length > 0);
+      if (!variation) return;
+      
+      const sizeStr = variation.selectedSizes[0];
+      const [w, h] = sizeStr.split('x').map(Number);
+      
+      const blob = await createAdUnitZip(variation, w, h);
+      
+      // Filename
+      let baseName = variation.utm.campaign && variation.utm.campaign !== 'campaign_name' 
+        ? variation.utm.campaign 
+        : variation.name;
+      baseName = baseName.replace(/[^a-z0-9-_]/gi, '-');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      
+      downloadBlob(blob, `${baseName}_${sizeStr}_${dateStr}.zip`);
+      return;
+    }
+
+    // CASE 2: Bulk Export (Bundle)
+    mainZip.file("README.txt", "IMPORTANT: Do not upload this ZIP file directly to Google Ads.\n\n1. Unzip this file first.\n2. Upload the individual .zip files (e.g., '300x250.zip') found inside.");
+
+    const variationPromises = variations.map(async (variation) => {
+      let targetFolder = mainZip;
+      if (variations.length > 1) {
+        let folderName = variation.name.trim().replace(/[^a-z0-9-_]/gi, '-');
+        if (!folderName) folderName = `variation-${variation.id}`;
+        targetFolder = mainZip.folder(folderName) || mainZip;
+      }
+
+      const sizePromises = variation.selectedSizes.map(async (sizeStr) => {
+          const [w, h] = sizeStr.split('x').map(Number);
+          const unitZipBlob = await createAdUnitZip(variation, w, h);
+          targetFolder.file(`${sizeStr}.zip`, unitZipBlob);
+      });
+      await Promise.all(sizePromises);
+    });
+
+    await Promise.all(variationPromises);
+    const content = await mainZip.generateAsync({ type: 'blob' });
+    
+    let fileName = 'HTML5_Banners_Bundle';
+    const activeVar = variations.find(v => v.id === activeVariationId) || variations[0];
+    if (activeVar.utm.campaign && activeVar.utm.campaign !== 'campaign_name') {
+       fileName = activeVar.utm.campaign + '_Bundle';
+    }
+    const dateStr = new Date().toISOString().slice(0, 10);
+    downloadBlob(content, `${fileName.replace(/[^a-z0-9-_]/gi, '-')}_${dateStr}.zip`);
   };
 
   const getFullClickTagPreview = () => {
@@ -443,6 +524,28 @@ export const Editor: React.FC = () => {
             <section>
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Typography</h3>
               <div className="space-y-3">
+                {/* Google Font Toggle */}
+                <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-100 rounded">
+                  <div className="flex items-center gap-2">
+                     <WifiOff size={14} className="text-blue-600"/>
+                     <span className="text-xs font-medium text-blue-800">Disable Google Fonts</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={state.design.disableGoogleFonts}
+                      onChange={(e) => updateDesign('disableGoogleFonts', e.target.checked)}
+                    />
+                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+                {state.design.disableGoogleFonts && (
+                  <p className="text-[10px] text-gray-500">
+                    Fixes "Cannot reference external URL" errors by using system fonts (Arial, Helvetica, etc) instead of linking to fonts.googleapis.com.
+                  </p>
+                )}
+
                 {/* Standard Font Select */}
                 <div>
                    <label className="block text-xs font-medium text-gray-600 mb-1">Standard Font</label>
@@ -462,7 +565,7 @@ export const Editor: React.FC = () => {
                 </div>
 
                 {/* Custom Google Font Input */}
-                <div>
+                <div className={state.design.disableGoogleFonts ? 'opacity-50 pointer-events-none' : ''}>
                    <label className="block text-xs font-medium text-gray-600 mb-1 flex items-center justify-between">
                       <span>Or Custom Google Font</span>
                       <a href="https://fonts.google.com/" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline text-[10px]">Browse Fonts</a>
@@ -517,7 +620,7 @@ export const Editor: React.FC = () => {
 
                <div className="mb-4">
                <div className="flex justify-between mb-1">
-                 <label className="text-xs font-medium text-gray-600">Frame Display Time (Seconds)</label>
+                 <label className="text-xs font-medium text-gray-600">Default Frame Duration</label>
                  <span className="text-xs text-gray-400">{state.frameDuration}s</span>
                </div>
                <input 
@@ -529,7 +632,7 @@ export const Editor: React.FC = () => {
                  onChange={(e) => updateFrameDuration(parseFloat(e.target.value))}
                  className="w-full accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                />
-               <p className="text-[10px] text-gray-400 mt-1">How long each tile stays visible before the next one appears.</p>
+               <p className="text-[10px] text-gray-400 mt-1">Global setting. Can be overridden per frame.</p>
             </div>
             </section>
           </div>
@@ -542,6 +645,29 @@ export const Editor: React.FC = () => {
                <Film size={12}/> Editing Content for <strong>Frame {activeFrameIndex + 1}</strong>
              </div>
              
+             {/* Frame Duration Override */}
+             <div>
+                <div className="flex justify-between items-center mb-1">
+                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                     <Clock size={12} /> Duration override
+                   </label>
+                   {activeFrame.duration !== undefined && (
+                     <button onClick={() => updateActiveFrameDuration(undefined)} className="text-[10px] text-red-500 hover:underline">Reset to default</button>
+                   )}
+                </div>
+                <div className="flex items-center gap-2">
+                   <input 
+                     type="number" 
+                     min="1" max="60" step="0.5"
+                     value={activeFrame.duration !== undefined ? activeFrame.duration : ''}
+                     onChange={(e) => updateActiveFrameDuration(e.target.value ? parseFloat(e.target.value) : undefined)}
+                     className="w-20 px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
+                     placeholder={`${state.frameDuration}`}
+                   />
+                   <span className="text-xs text-gray-400">seconds (Default: {state.frameDuration}s)</span>
+                </div>
+             </div>
+
              {/* Frame Layout Selector */}
              <div>
                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Frame Layout</label>

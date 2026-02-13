@@ -41,8 +41,9 @@ const createDefaultState = (id: string = generateId(), name: string = 'Variation
       backgroundColor: '#ffffff',
       textColor: '#333333',
       borderColor: '#cccccc',
-      font: 'Roboto',
+      font: 'Arial',
       customFont: null,
+      disableGoogleFonts: true, // Default to true for safer uploads
       fontSizeScale: 1.0,
       logoPosition: 'top-left',
     },
@@ -90,7 +91,8 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
        id: generateId(),
        assets: { ...f.assets },
        copy: { ...f.copy },
-       layout: f.layout
+       layout: f.layout,
+       duration: f.duration
     }));
 
     const newState: AdState = {
@@ -149,7 +151,8 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         id: generateId(),
         assets: { ...frameToClone.assets },
         copy: { ...frameToClone.copy },
-        layout: frameToClone.layout
+        layout: frameToClone.layout,
+        duration: frameToClone.duration
       };
 
       const newFrames = [...prev.frames];
@@ -186,6 +189,14 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     updateActiveState(prev => ({
       ...prev,
       frames: prev.frames.map(f => f.id === prev.activeFrameId ? { ...f, layout } : f)
+    }));
+  };
+
+  const updateActiveFrameDuration = (duration: number | undefined) => {
+    updateActiveState(prev => ({
+      ...prev,
+      frames: prev.frames.map(f => f.id === prev.activeFrameId ? { ...f, duration } : f),
+      animationKey: prev.animationKey + 1
     }));
   };
 
@@ -242,7 +253,7 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     }));
   };
 
-  const updateDesign = (key: keyof AdDesign, value: string | number | null) => {
+  const updateDesign = (key: keyof AdDesign, value: string | number | null | boolean) => {
     updateActiveState((prev) => ({
       ...prev,
       design: { ...prev.design, [key]: value },
@@ -305,6 +316,7 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         removeFrame,
         setActiveFrame,
         updateFrameLayout,
+        updateActiveFrameDuration,
         toggleSize,
         addCustomSize,
         updateLandingPage,

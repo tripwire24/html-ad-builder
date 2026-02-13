@@ -36,13 +36,13 @@ export const compressImage = (file: File): Promise<string> => {
         }
 
         ctx.drawImage(img, 0, 0, width, height);
-        // Export as JPEG with 0.8 quality for good compression/quality balance
-        // If the original was PNG with transparency, this converts to black background if using jpeg.
-        // For banners, we usually want PNG for logos/products (transparency) and JPEG for backgrounds.
-        // Heuristic: If file type is png, try to keep it png but scale it down, unless it's very large.
         
+        // Use JPEG for background/opaque, PNG if file was PNG (preserve transparency)
+        // Simple heuristic: if original was png, keep png.
         const outputType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-        const quality = 0.8;
+        
+        // Lower quality to 0.6 to safely stay under 150KB limit with multiple images
+        const quality = 0.6;
         
         const dataUrl = canvas.toDataURL(outputType, quality);
         resolve(dataUrl);
@@ -58,4 +58,23 @@ export const calculateBase64SizeInKB = (base64String: string | null): number => 
   const stringLength = base64String.length - 'data:image/png;base64,'.length;
   const sizeInBytes = 4 * Math.ceil((stringLength) / 3) * 0.5624896334383812;
   return sizeInBytes / 1024;
+};
+
+/**
+ * Converts a Base64 Data URL to a Blob for file saving.
+ */
+export const base64ToBlob = (dataURI: string): Blob => {
+  const splitDataURI = dataURI.split(',');
+  const byteString = splitDataURI[0].indexOf('base64') >= 0 
+      ? atob(splitDataURI[1]) 
+      : decodeURI(splitDataURI[1]);
+  
+  const mimeString = splitDataURI[0].split(':')[1].split(';')[0];
+  const ia = new Uint8Array(byteString.length);
+  
+  for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+  }
+  
+  return new Blob([ia], { type: mimeString });
 };

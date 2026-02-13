@@ -34,6 +34,7 @@ export interface AdFrame {
   assets: AdAssets;
   copy: AdCopy;
   layout: FrameLayout;
+  duration?: number; // Optional override in seconds
 }
 
 export interface AdDesign {
@@ -44,6 +45,7 @@ export interface AdDesign {
   borderColor: string;
   font: string; // The selected standard font
   customFont: string | null; // Optional user-provided Google Font
+  disableGoogleFonts: boolean; // Use web-safe fonts only to prevent upload errors
   fontSizeScale: number; // 0.5 to 2.0, default 1.0
   logoPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center' | 'center';
 }
@@ -129,7 +131,8 @@ export interface AdContextType {
   duplicateFrame: (id: string) => void;
   removeFrame: (id: string) => void;
   setActiveFrame: (id: string) => void;
-  updateFrameLayout: (layout: FrameLayout) => void; // New
+  updateFrameLayout: (layout: FrameLayout) => void;
+  updateActiveFrameDuration: (duration: number | undefined) => void; // New
   
   // Content
   toggleSize: (sizeKey: string) => void;
@@ -142,7 +145,7 @@ export interface AdContextType {
   updateCopy: (key: keyof AdCopy, value: string) => void; // Updates active frame
   updateFrameDuration: (seconds: number) => void;
 
-  updateDesign: (key: keyof AdDesign, value: string | number | null) => void;
+  updateDesign: (key: keyof AdDesign, value: string | number | null | boolean) => void;
   updateAnimation: (key: keyof AdAnimation, value: string | number) => void;
   applyAnimationPreset: (preset: AnimationPreset) => void;
   updateSizeOverride: (sizeKey: string, override: Partial<AdSizeOverride>) => void;
