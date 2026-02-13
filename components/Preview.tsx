@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAd } from '../context/AdContext';
 import { generateBannerHTML } from '../utils/generators';
-import { Play, ZoomIn, ZoomOut, Monitor, Smartphone, AlertCircle, CheckCircle, Edit, X, Film } from 'lucide-react';
+import { Play, ZoomIn, ZoomOut, Monitor, Smartphone, AlertCircle, CheckCircle, Edit, X, Film, Image as ImageIcon } from 'lucide-react';
 import { AdSizeOverride } from '../types';
 
 interface EditModalProps {
@@ -39,7 +39,7 @@ const EditModal: React.FC<EditModalProps> = ({ sizeKey, width, height, onClose }
         <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
           {/* Preview Area */}
           <div className="flex-1 bg-gray-100 flex items-center justify-center p-8 overflow-auto relative">
-             <div className="bg-white shadow-lg ring-1 ring-gray-200" style={{ width, height }}>
+             <div className="bg-white shadow-lg ring-1 ring-gray-200 overflow-hidden" style={{ width, height }}>
                 <iframe
                   title={`edit-${sizeKey}`}
                   srcDoc={html}
@@ -90,88 +90,120 @@ const EditModal: React.FC<EditModalProps> = ({ sizeKey, width, height, onClose }
               </div>
             </div>
 
-            {/* 2. Text Positioning Overrides */}
+            {/* 2. Image Layout Overrides */}
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 block border-b border-gray-100 pb-2">Text Layout Overrides</label>
+               <div className="flex items-center gap-2 pb-2 mb-3 border-b border-gray-100">
+                  <ImageIcon size={14} className="text-blue-600" />
+                  <label className="text-xs font-bold text-gray-800 uppercase tracking-wider">Image Layout Overrides</label>
+               </div>
+               
+               {/* Background Control */}
+               <div className="mb-4 pb-4 border-b border-dashed border-gray-100">
+                  <label className="text-[10px] font-bold text-gray-500 mb-2 block uppercase">Background Image</label>
+                  <div className="mb-2">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[10px] text-gray-500">Zoom</span>
+                      <span className="text-[10px] text-gray-400">{(override.bgScale ?? 1.0).toFixed(2)}x</span>
+                    </div>
+                    <input 
+                      type="range" min="1.0" max="3.0" step="0.05"
+                      value={override.bgScale ?? 1.0}
+                      onChange={(e) => handleUpdate({ bgScale: parseFloat(e.target.value) })}
+                      className="w-full accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                     <div>
+                        <label className="text-[10px] text-gray-400 mb-1 block">Pos X</label>
+                        <input type="number" value={override.bgOffsetX || 0} onChange={(e) => handleUpdate({ bgOffsetX: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                     </div>
+                     <div>
+                        <label className="text-[10px] text-gray-400 mb-1 block">Pos Y</label>
+                        <input type="number" value={override.bgOffsetY || 0} onChange={(e) => handleUpdate({ bgOffsetY: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                     </div>
+                  </div>
+               </div>
+
+               {/* Product Control */}
+               <div className="mb-2">
+                  <label className="text-[10px] font-bold text-gray-500 mb-2 block uppercase">Product Image</label>
+                  <div className="mb-2">
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[10px] text-gray-500">Zoom</span>
+                      <span className="text-[10px] text-gray-400">{(override.productScale ?? 1.0).toFixed(2)}x</span>
+                    </div>
+                    <input 
+                      type="range" min="0.5" max="2.0" step="0.05"
+                      value={override.productScale ?? 1.0}
+                      onChange={(e) => handleUpdate({ productScale: parseFloat(e.target.value) })}
+                      className="w-full accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                     <div>
+                        <label className="text-[10px] text-gray-400 mb-1 block">Pos X</label>
+                        <input type="number" value={override.productOffsetX || 0} onChange={(e) => handleUpdate({ productOffsetX: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                     </div>
+                     <div>
+                        <label className="text-[10px] text-gray-400 mb-1 block">Pos Y</label>
+                        <input type="number" value={override.productOffsetY || 0} onChange={(e) => handleUpdate({ productOffsetY: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            {/* 3. Text Positioning Overrides */}
+            <div>
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 block border-b border-gray-100 pb-2">Text & Logo Overrides</label>
+              
               <div className="mb-4">
+                <label className="text-[10px] font-bold text-gray-500 mb-2 block uppercase">Text Block</label>
                 <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium text-gray-700">Size Scale</span>
-                  <span className="text-xs text-gray-400">{(override.fontSizeScale ?? state.design.fontSizeScale).toFixed(1)}x</span>
+                  <span className="text-[10px] text-gray-500">Scale</span>
+                  <span className="text-[10px] text-gray-400">{(override.fontSizeScale ?? state.design.fontSizeScale).toFixed(1)}x</span>
                 </div>
                 <input 
                   type="range" min="0.5" max="2.0" step="0.1"
                   value={override.fontSizeScale ?? state.design.fontSizeScale}
                   onChange={(e) => handleUpdate({ fontSizeScale: parseFloat(e.target.value) })}
-                  className="w-full accent-blue-600"
+                  className="w-full accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none mb-2"
                 />
+                <div className="grid grid-cols-2 gap-2">
+                    <input type="number" placeholder="X" value={override.textOffsetX || 0} onChange={(e) => handleUpdate({ textOffsetX: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                    <input type="number" placeholder="Y" value={override.textOffsetY || 0} onChange={(e) => handleUpdate({ textOffsetY: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                 <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Offset X</label>
-                    <input 
-                      type="number" 
-                      value={override.textOffsetX || 0}
-                      onChange={(e) => handleUpdate({ textOffsetX: parseInt(e.target.value) })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
-                    />
-                 </div>
-                 <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Offset Y</label>
-                    <input 
-                      type="number" 
-                      value={override.textOffsetY || 0}
-                      onChange={(e) => handleUpdate({ textOffsetY: parseInt(e.target.value) })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
-                    />
-                 </div>
-              </div>
-            </div>
-
-            {/* 3. Logo Positioning Overrides */}
-            <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 block border-b border-gray-100 pb-2">Logo Layout Overrides</label>
-              <div className="mb-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 mb-2 block uppercase">Logo</label>
                 <div className="flex justify-between mb-1">
-                  <span className="text-sm font-medium text-gray-700">Size Scale</span>
-                  <span className="text-xs text-gray-400">{(override.logoScale ?? 1.0).toFixed(1)}x</span>
+                  <span className="text-[10px] text-gray-500">Scale</span>
+                  <span className="text-[10px] text-gray-400">{(override.logoScale ?? 1.0).toFixed(1)}x</span>
                 </div>
                 <input 
                   type="range" min="0.5" max="2.0" step="0.1"
                   value={override.logoScale ?? 1.0}
                   onChange={(e) => handleUpdate({ logoScale: parseFloat(e.target.value) })}
-                  className="w-full accent-blue-600"
+                  className="w-full accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none mb-2"
                 />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                 <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Offset X</label>
-                    <input 
-                      type="number" 
-                      value={override.logoOffsetX || 0}
-                      onChange={(e) => handleUpdate({ logoOffsetX: parseInt(e.target.value) })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
-                    />
-                 </div>
-                 <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Offset Y</label>
-                    <input 
-                      type="number" 
-                      value={override.logoOffsetY || 0}
-                      onChange={(e) => handleUpdate({ logoOffsetY: parseInt(e.target.value) })}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
-                    />
-                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <input type="number" placeholder="X" value={override.logoOffsetX || 0} onChange={(e) => handleUpdate({ logoOffsetX: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                    <input type="number" placeholder="Y" value={override.logoOffsetY || 0} onChange={(e) => handleUpdate({ logoOffsetY: parseInt(e.target.value) })} className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                </div>
               </div>
             </div>
 
             <div className="pt-4 mt-auto">
                <button 
-                 onClick={() => updateSizeOverride(sizeKey, { fontSizeScale: undefined, logoScale: undefined, textOffsetX: 0, textOffsetY: 0, logoOffsetX: 0, logoOffsetY: 0 })}
-                 className="w-full py-2 text-sm text-red-600 border border-red-200 hover:bg-red-50 rounded transition-colors"
+                 onClick={() => updateSizeOverride(sizeKey, { 
+                   fontSizeScale: undefined, logoScale: undefined, 
+                   textOffsetX: 0, textOffsetY: 0, logoOffsetX: 0, logoOffsetY: 0,
+                   bgScale: 1.0, bgOffsetX: 0, bgOffsetY: 0,
+                   productScale: 1.0, productOffsetX: 0, productOffsetY: 0
+                 })}
+                 className="w-full py-2 text-xs text-red-600 border border-red-200 hover:bg-red-50 rounded transition-colors"
                >
-                 Reset Layout Overrides
+                 Reset All Overrides for {sizeKey}
                </button>
             </div>
           </div>

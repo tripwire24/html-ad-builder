@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
 import { AdState, AdContextType, AdAssets, AdCopy, AdDesign, AdAnimation, AnimationPreset, AdSizeOverride, AdFrame, UtmParams, FrameLayout } from '../types';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -43,7 +43,7 @@ const createDefaultState = (id: string = generateId(), name: string = 'Variation
       borderColor: '#cccccc',
       font: 'Arial',
       customFont: null,
-      disableGoogleFonts: true, // Default to true for safer uploads
+      disableGoogleFonts: true,
       fontSizeScale: 1.0,
       logoPosition: 'top-left',
     },
@@ -59,51 +59,58 @@ const createDefaultState = (id: string = generateId(), name: string = 'Variation
 const AdContext = createContext<AdContextType | undefined>(undefined);
 
 export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [variations, setVariations] = useState<AdState[]>([createDefaultState()]);
-  const [activeVariationId, setActiveVariationId] = useState<string>(variations[0].id);
+  const [variations, setVariations] = useState<AdState[]>(() => [createDefaultState()]);
+  const [activeVariationId, setActiveVariationId] = useState<string>(() => variations[0]?.id || '');
 
-  // Helper to update the currently active variation
-  const updateActiveState = (updater: (prev: AdState) => AdState) => {
+  // Helper to get the state for the current ID
+  const getActiveState = useCallback((): AdState => {
+    const found = variations.find(v => v.id === activeVariationId);
+    return found || variations[0];
+  }, [variations, activeVariationId]);
+
+  const updateActiveState = useCallback((updater: (prev: AdState) => AdState) => {
     setVariations((prevVars) => 
       prevVars.map((v) => (v.id === activeVariationId ? updater(v) : v))
     );
-  };
+  }, [activeVariationId]);
 
-  const getActiveState = (): AdState => {
-    return variations.find(v => v.id === activeVariationId) || variations[0];
-  };
-
-  // VARIATION MANAGEMENT
-  const setActiveVariation = (id: string) => {
-    if (variations.find(v => v.id === id)) {
-      setActiveVariationId(id);
+  const loadProject = (loadedState: AdState) => {
+    if (!loadedState || !loadedState.frames) {
+      alert("Invalid project file");
+      return;
     }
+    const newId = generateId();
+    const newState = { ...loadedState, id: newId, name: (loadedState.name || 'Imported') + ' (Imported)' };
+    setVariations(prev => [...prev, newState]);
+    setActiveVariationId(newId);
+  };
+
+  const setActiveVariation = (id: string) => {
+    setActiveVariationId(id);
   };
 
   const addVariation = () => {
     const current = getActiveState();
     const newId = generateId();
-    const newName = `Variation ${variations.length + 1}`;
     
-    // Deep clone frames
+    // Deep clone frames with new IDs
     const clonedFrames = current.frames.map(f => ({
        ...f,
        id: generateId(),
        assets: { ...f.assets },
-       copy: { ...f.copy },
-       layout: f.layout,
-       duration: f.duration
+       copy: { ...f.copy }
     }));
 
     const newState: AdState = {
       ...current,
       id: newId,
-      name: newName,
+      name: `${current.name} (Copy)`,
       frames: clonedFrames,
       activeFrameId: clonedFrames[0].id,
       animationKey: 0
     };
-    setVariations([...variations, newState]);
+    
+    setVariations(prev => [...prev, newState]);
     setActiveVariationId(newId);
   };
 
@@ -120,18 +127,9 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     setVariations(prev => prev.map(v => v.id === id ? { ...v, name } : v));
   };
 
-  // FRAME MANAGEMENT
   const addFrame = () => {
     updateActiveState(prev => {
        const newFrame = createDefaultFrame();
-       // Optionally copy assets from previous frame for convenience
-       const lastFrame = prev.frames[prev.frames.length - 1];
-       if (lastFrame) {
-         newFrame.assets = { ...lastFrame.assets };
-         // Maybe clear copy?
-         newFrame.copy = { headline: 'New Frame', subline: '', cta: lastFrame.copy.cta };
-         newFrame.layout = lastFrame.layout;
-       }
        return {
          ...prev,
          frames: [...prev.frames, newFrame],
@@ -145,19 +143,15 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     updateActiveState(prev => {
       const index = prev.frames.findIndex(f => f.id === id);
       if (index === -1) return prev;
-      
       const frameToClone = prev.frames[index];
       const newFrame: AdFrame = {
+        ...frameToClone,
         id: generateId(),
         assets: { ...frameToClone.assets },
-        copy: { ...frameToClone.copy },
-        layout: frameToClone.layout,
-        duration: frameToClone.duration
+        copy: { ...frameToClone.copy }
       };
-
       const newFrames = [...prev.frames];
-      newFrames.splice(index + 1, 0, newFrame); // Insert after original
-
+      newFrames.splice(index + 1, 0, newFrame);
       return {
         ...prev,
         frames: newFrames,
@@ -176,6 +170,26 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         ...prev,
         frames: newFrames,
         activeFrameId: newActiveId,
+        animationKey: prev.animationKey + 1
+      };
+    });
+  };
+
+  const moveFrame = (id: string, direction: 'left' | 'right') => {
+    updateActiveState(prev => {
+      const index = prev.frames.findIndex(f => f.id === id);
+      if (index === -1) return prev;
+      const newFrames = [...prev.frames];
+      if (direction === 'left' && index > 0) {
+        [newFrames[index - 1], newFrames[index]] = [newFrames[index], newFrames[index - 1]];
+      } else if (direction === 'right' && index < newFrames.length - 1) {
+        [newFrames[index + 1], newFrames[index]] = [newFrames[index], newFrames[index + 1]];
+      } else {
+        return prev;
+      }
+      return {
+        ...prev,
+        frames: newFrames,
         animationKey: prev.animationKey + 1
       };
     });
@@ -204,7 +218,6 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     updateActiveState(prev => ({ ...prev, frameDuration: seconds, animationKey: prev.animationKey + 1 }));
   };
 
-  // CONTENT UPDATES
   const toggleSize = (sizeKey: string) => {
     updateActiveState((prev) => {
       const exists = prev.selectedSizes.includes(sizeKey);
@@ -256,14 +269,14 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const updateDesign = (key: keyof AdDesign, value: string | number | null | boolean) => {
     updateActiveState((prev) => ({
       ...prev,
-      design: { ...prev.design, [key]: value },
+      design: { ...prev.design, [key]: value as any },
     }));
   };
 
   const updateAnimation = (key: keyof AdAnimation, value: string | number) => {
     updateActiveState((prev) => ({
       ...prev,
-      animation: { ...prev.animation, [key]: value },
+      animation: { ...prev.animation, [key]: value as any },
     }));
   };
 
@@ -296,24 +309,28 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   };
 
   const reset = () => {
-    updateActiveState((prev) => ({
-      ...createDefaultState(prev.id, prev.name),
-    }));
+    const newState = createDefaultState();
+    setVariations([newState]);
+    setActiveVariationId(newState.id);
   };
+
+  const currentState = getActiveState();
 
   return (
     <AdContext.Provider
       value={{
-        state: getActiveState(),
+        state: currentState,
         variations,
         activeVariationId,
         setActiveVariation,
         addVariation,
         removeVariation,
         updateVariationName,
+        loadProject,
         addFrame,
         duplicateFrame,
         removeFrame,
+        moveFrame,
         setActiveFrame,
         updateFrameLayout,
         updateActiveFrameDuration,

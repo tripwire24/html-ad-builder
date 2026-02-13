@@ -83,12 +83,25 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
 ];
 
 export interface AdSizeOverride {
+  // Text
   fontSizeScale?: number;
-  logoScale?: number;
   textOffsetX?: number; // pixels
   textOffsetY?: number; // pixels
+  
+  // Logo
+  logoScale?: number;
   logoOffsetX?: number; // pixels
   logoOffsetY?: number; // pixels
+
+  // Background Image
+  bgScale?: number;
+  bgOffsetX?: number;
+  bgOffsetY?: number;
+
+  // Product Image
+  productScale?: number;
+  productOffsetX?: number;
+  productOffsetY?: number;
 }
 
 export interface UtmParams {
@@ -125,14 +138,16 @@ export interface AdContextType {
   addVariation: () => void; // Clones current or adds new
   removeVariation: (id: string) => void;
   updateVariationName: (id: string, name: string) => void;
+  loadProject: (state: AdState) => void;
   
   // Frame Management
   addFrame: () => void;
   duplicateFrame: (id: string) => void;
   removeFrame: (id: string) => void;
+  moveFrame: (id: string, direction: 'left' | 'right') => void;
   setActiveFrame: (id: string) => void;
   updateFrameLayout: (layout: FrameLayout) => void;
-  updateActiveFrameDuration: (duration: number | undefined) => void; // New
+  updateActiveFrameDuration: (duration: number | undefined) => void; 
   
   // Content
   toggleSize: (sizeKey: string) => void;

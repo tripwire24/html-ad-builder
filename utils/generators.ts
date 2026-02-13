@@ -31,12 +31,12 @@ export const generateBannerHTML = (
     return base64;
   };
 
-  // 3. Layout Detection (Only include CSS for used layouts to save bytes)
+  // 3. Layout Detection
   const usedLayouts = new Set<FrameLayout>(frames.map(f => f.layout));
   
   const isWide = width > height * 1.5;
 
-  // 4. CSS Generation
+  // 4. CSS Generation - Overrides
   const effectiveFontScale = override.fontSizeScale !== undefined ? override.fontSizeScale : design.fontSizeScale;
   const logoScale = override.logoScale !== undefined ? override.logoScale : 1.0;
   
@@ -44,6 +44,19 @@ export const generateBannerHTML = (
   const textOffsetY = override.textOffsetY || 0;
   const logoOffsetX = override.logoOffsetX || 0;
   const logoOffsetY = override.logoOffsetY || 0;
+
+  // Background Image scaling/position
+  const bgScale = override.bgScale || 1.0;
+  const bgX = override.bgOffsetX || 0;
+  const bgY = override.bgOffsetY || 0;
+  const bgTransform = `scale(${bgScale}) translate(${bgX}px, ${bgY}px)`;
+
+  // Product Image scaling/position
+  const prodScale = override.productScale || 1.0;
+  const prodX = override.productOffsetX || 0;
+  const prodY = override.productOffsetY || 0;
+  // Note: For products, they are often in flex containers, so transform is safer than margin
+  const prodTransform = `scale(${prodScale}) translate(${prodX}px, ${prodY}px)`;
 
   const scale = effectiveFontScale || 1.0;
   const baseFontSize = Math.max(12, Math.round(Math.min(width, height) / 10)) * scale;
@@ -175,12 +188,17 @@ export const generateBannerHTML = (
     const logoSrc = getSrc(frame.assets.logo);
     const prodSrc = getSrc(frame.assets.product);
     
+    // Apply transforms inline to avoid specificity issues or complex CSS construction per frame
+    // Note: transform-origin center is default
+    const bgStyle = `transform: ${bgTransform}; transform-origin: center center;`;
+    const prodStyle = `transform: ${prodTransform}; transform-origin: center center;`;
+
     return `
       <div id="frame-${i}" class="frame layout-${frame.layout}">
-        ${bgSrc ? `<img src="${bgSrc}" class="bg-image" alt="" />` : ''}
+        ${bgSrc ? `<img src="${bgSrc}" class="bg-image" alt="" style="${bgStyle}" />` : ''}
         ${logoSrc ? `<img src="${logoSrc}" class="logo" alt="Logo" />` : ''}
         <div class="content-wrapper">
-          ${prodSrc ? `<img src="${prodSrc}" class="product-img" alt="Product" />` : ''}
+          ${prodSrc ? `<img src="${prodSrc}" class="product-img" alt="Product" style="${prodStyle}" />` : ''}
           <div class="text-group">
             ${frame.copy.headline ? `<h1>${frame.copy.headline}</h1>` : ''}
             ${frame.copy.subline ? `<p>${frame.copy.subline}</p>` : ''}
@@ -218,7 +236,7 @@ export const generateBannerHTML = (
   }
   .bg-image {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-    object-fit: cover; z-index: 1;
+    object-fit: cover; z-index: 1; transition: transform 0.1s;
   }
   .content-wrapper {
     position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -232,6 +250,9 @@ export const generateBannerHTML = (
     margin-left: ${logoOffsetX}px; margin-top: ${logoOffsetY}px;
     transform: scale(${logoScale}) ${design.logoPosition.includes('center') && !design.logoPosition.includes('top-center') ? 'translate(-50%, -50%)' : ''} ${design.logoPosition === 'top-center' ? 'translateX(-50%)' : ''};
     transform-origin: center;
+  }
+  .product-img {
+    transition: transform 0.1s;
   }
   .text-group {
     display: flex; flex-direction: column; width: 100%;

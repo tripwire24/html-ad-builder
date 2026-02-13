@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useAd } from '../context/AdContext';
 import { AVAILABLE_SIZES, ANIMATION_PRESETS, AdAssets, FrameLayout } from '../types';
 import { compressImage, base64ToBlob } from '../utils/compression';
-import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize, Clock, WifiOff } from 'lucide-react';
+import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize, Clock, WifiOff, ArrowLeft, ArrowRight, Save, FolderOpen } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateBannerHTML } from '../utils/generators';
 
@@ -73,13 +73,14 @@ const AssetUploader: React.FC<{
 export const Editor: React.FC = () => {
   const { 
     state, toggleSize, addCustomSize, updateCopy, updateDesign, updateAnimation, applyAnimationPreset,
-    variations, activeVariationId, setActiveVariation, addVariation, removeVariation, updateVariationName,
-    addFrame, duplicateFrame, removeFrame, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout, updateActiveFrameDuration
+    variations, activeVariationId, setActiveVariation, addVariation, removeVariation, updateVariationName, loadProject,
+    addFrame, duplicateFrame, removeFrame, moveFrame, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout, updateActiveFrameDuration
   } = useAd();
   
   const [activeTab, setActiveTab] = useState<'layout' | 'assets' | 'design' | 'content'>('layout');
   const [customW, setCustomW] = useState('300');
   const [customH, setCustomH] = useState('100');
+  const projectInputRef = useRef<HTMLInputElement>(null);
 
   // Identify active frame
   const activeFrame = state.frames.find(f => f.id === state.activeFrameId) || state.frames[0];
@@ -106,6 +107,29 @@ export const Editor: React.FC = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  const handleSaveProject = () => {
+    const json = JSON.stringify(state, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const filename = `${state.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+    downloadBlob(blob, filename);
+  };
+
+  const handleLoadProject = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const loadedState = JSON.parse(ev.target?.result as string);
+          loadProject(loadedState);
+        } catch (err) {
+          alert("Failed to load project file.");
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
   const handleExport = async () => {
     const totalUnits = variations.reduce((acc, v) => acc + v.selectedSizes.length, 0);
     
@@ -115,7 +139,6 @@ export const Editor: React.FC = () => {
     }
 
     const mainZip = new JSZip();
-    const isMultiUnit = totalUnits > 1;
 
     // Helper to generate a single ad unit zip
     const createAdUnitZip = async (variation: typeof state, w: number, h: number) => {
@@ -227,9 +250,34 @@ export const Editor: React.FC = () => {
     <div className="w-96 bg-white border-r border-gray-200 h-full flex flex-col shadow-xl z-20">
       
       {/* App Header */}
-      <div className="p-4 border-b border-gray-100 flex items-center gap-2 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
-        <Layers className="text-blue-400" /> 
-        <h1 className="text-lg font-bold tracking-tight">AdBuilder Pro</h1>
+      <div className="p-4 border-b border-gray-100 flex flex-col gap-2 bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+        <div className="flex items-center gap-2">
+            <Layers className="text-blue-400" /> 
+            <h1 className="text-lg font-bold tracking-tight">AdBuilder Pro</h1>
+        </div>
+        
+        {/* Project Controls */}
+        <div className="flex gap-2 mt-1">
+            <button 
+                onClick={handleSaveProject}
+                className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 text-white py-1.5 rounded transition-colors"
+            >
+                <Save size={12} /> Save Project
+            </button>
+            <button 
+                onClick={() => projectInputRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-1.5 text-xs bg-white/10 hover:bg-white/20 text-white py-1.5 rounded transition-colors"
+            >
+                <FolderOpen size={12} /> Open
+            </button>
+            <input 
+                type="file" 
+                ref={projectInputRef} 
+                onChange={handleLoadProject} 
+                accept=".json" 
+                className="hidden" 
+            />
+        </div>
       </div>
 
       {/* Variation Manager */}
@@ -291,29 +339,50 @@ export const Editor: React.FC = () => {
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {state.frames.map((frame, index) => (
-             <button
-               key={frame.id}
-               onClick={() => setActiveFrame(frame.id)}
-               className={`relative flex flex-col items-center min-w-[3.5rem] p-1.5 rounded border transition-all group ${
-                 frame.id === state.activeFrameId 
-                   ? 'border-blue-600 bg-blue-50 shadow-sm' 
-                   : 'border-gray-200 hover:bg-gray-50'
-               }`}
-             >
-               <span className={`text-xs font-bold mb-3 ${frame.id === state.activeFrameId ? 'text-blue-700' : 'text-gray-600'}`}>
-                 #{index + 1}
-               </span>
-               <div className="flex items-center gap-1">
-                 <div onClick={(e) => { e.stopPropagation(); duplicateFrame(frame.id); }} className="p-1 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-100 transition-colors" title="Duplicate Tile">
-                    <Copy size={10} />
-                 </div>
-                 {state.frames.length > 1 && (
-                   <div onClick={(e) => { e.stopPropagation(); removeFrame(frame.id); }} className="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-100 transition-colors" title="Delete Tile">
-                      <Trash2 size={10} />
-                   </div>
-                 )}
-               </div>
-             </button>
+             <div key={frame.id} className="relative group/frame flex flex-col">
+                <button
+                onClick={() => setActiveFrame(frame.id)}
+                className={`relative flex flex-col items-center min-w-[3.5rem] p-1.5 rounded border transition-all ${
+                    frame.id === state.activeFrameId 
+                    ? 'border-blue-600 bg-blue-50 shadow-sm' 
+                    : 'border-gray-200 hover:bg-gray-50'
+                }`}
+                >
+                <span className={`text-xs font-bold mb-3 ${frame.id === state.activeFrameId ? 'text-blue-700' : 'text-gray-600'}`}>
+                    #{index + 1}
+                </span>
+                <div className="flex items-center gap-1">
+                    <div onClick={(e) => { e.stopPropagation(); duplicateFrame(frame.id); }} className="p-1 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-100 transition-colors" title="Duplicate Tile">
+                        <Copy size={10} />
+                    </div>
+                    {state.frames.length > 1 && (
+                    <div onClick={(e) => { e.stopPropagation(); removeFrame(frame.id); }} className="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-100 transition-colors" title="Delete Tile">
+                        <Trash2 size={10} />
+                    </div>
+                    )}
+                </div>
+                </button>
+                
+                {/* Reorder Controls */}
+                {state.frames.length > 1 && (
+                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 flex bg-white border border-gray-200 rounded-full shadow-sm opacity-0 group-hover/frame:opacity-100 transition-opacity">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); moveFrame(frame.id, 'left'); }}
+                            disabled={index === 0}
+                            className={`p-0.5 ${index === 0 ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}
+                        >
+                            <ArrowLeft size={10} />
+                        </button>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); moveFrame(frame.id, 'right'); }}
+                            disabled={index === state.frames.length - 1}
+                            className={`p-0.5 ${index === state.frames.length - 1 ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}
+                        >
+                            <ArrowRight size={10} />
+                        </button>
+                    </div>
+                )}
+             </div>
           ))}
         </div>
       </div>
@@ -326,6 +395,7 @@ export const Editor: React.FC = () => {
         <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Content" />
       </div>
 
+      {/* ... Rest of the Editor content remains effectively the same, just keeping it here for context if needed ... */}
       <div className="flex-1 overflow-y-auto p-5 bg-gray-50/50">
         
         {/* LAYOUT TAB */}
@@ -561,6 +631,7 @@ export const Editor: React.FC = () => {
                      <option value="Lato">Lato</option>
                      <option value="Poppins">Poppins</option>
                      <option value="Oswald">Oswald</option>
+                     <option value="Arial">Arial</option>
                    </select>
                 </div>
 
