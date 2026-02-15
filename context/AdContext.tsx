@@ -207,6 +207,19 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     });
   };
 
+  const reorderFrames = (fromIndex: number, toIndex: number) => {
+    updateActiveState(prev => {
+      const newFrames = [...prev.frames];
+      const [movedFrame] = newFrames.splice(fromIndex, 1);
+      newFrames.splice(toIndex, 0, movedFrame);
+      return {
+        ...prev,
+        frames: newFrames,
+        animationKey: prev.animationKey + 1
+      };
+    });
+  };
+
   const setActiveFrame = (id: string) => {
     updateActiveState(prev => ({ ...prev, activeFrameId: id }));
   };
@@ -391,6 +404,7 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         duplicateFrame,
         removeFrame,
         moveFrame,
+        reorderFrames,
         setActiveFrame,
         updateFrameLayout,
         updateActiveFrameDuration,

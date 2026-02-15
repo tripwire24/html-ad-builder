@@ -1,9 +1,9 @@
 
 import React, { useRef, useState } from 'react';
 import { useAd } from '../context/AdContext';
-import { AVAILABLE_SIZES, ANIMATION_PRESETS, AdAssets, FrameLayout, AssetItem } from '../types';
+import { AVAILABLE_SIZES, ANIMATION_PRESETS, AdAssets, FrameLayout, AssetItem, AdFrame, AdDesign } from '../types';
 import { compressImage, base64ToBlob } from '../utils/compression';
-import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize, Clock, WifiOff, ArrowLeft, ArrowRight, Save, FolderOpen, Grid, Check } from 'lucide-react';
+import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize, Clock, WifiOff, ArrowLeft, ArrowRight, Save, FolderOpen, Grid, Check, GripVertical } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateBannerHTML } from '../utils/generators';
 
@@ -102,11 +102,49 @@ const AssetManager: React.FC<{
   );
 };
 
+const FrameThumbnail: React.FC<{ frame: AdFrame; design: AdDesign; index: number }> = ({ frame, design, index }) => {
+  return (
+    <div className="w-full h-full relative overflow-hidden bg-white group-hover:bg-gray-50 transition-colors">
+       {/* Background Layer */}
+       <div 
+         className="absolute inset-0" 
+         style={{ backgroundColor: design.backgroundColor }}
+       />
+       
+       {/* Background Image Layer */}
+       {frame.assets.background && (
+         <img 
+           src={frame.assets.background} 
+           alt="" 
+           className="absolute inset-0 w-full h-full object-cover opacity-80" 
+         />
+       )}
+       
+       {/* Overlay Content Mockup */}
+       <div className="absolute inset-0 flex flex-col items-center justify-center p-2 gap-1 pointer-events-none">
+          {/* Mock Text Lines */}
+          <div className="w-3/4 h-1.5 bg-gray-800/20 rounded-full backdrop-blur-[1px]"></div>
+          <div className="w-1/2 h-1.5 bg-gray-800/10 rounded-full backdrop-blur-[1px]"></div>
+          
+          {/* Product Image */}
+          {frame.assets.product && (
+            <img src={frame.assets.product} alt="" className="w-1/2 h-1/2 object-contain mt-1 z-10 drop-shadow-sm" />
+          )}
+       </div>
+
+       {/* Frame Number Badge */}
+       <div className="absolute top-1 left-1 bg-black/60 text-white text-[10px] font-bold px-1.5 py-0.5 rounded backdrop-blur-sm z-20">
+          #{index + 1}
+       </div>
+    </div>
+  );
+};
+
 export const Editor: React.FC = () => {
   const { 
     state, toggleSize, addCustomSize, updateCopy, updateDesign, updateAnimation, applyAnimationPreset,
     variations, activeVariationId, setActiveVariation, addVariation, removeVariation, updateVariationName, loadProject,
-    addFrame, duplicateFrame, removeFrame, moveFrame, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout, 
+    addFrame, duplicateFrame, removeFrame, moveFrame, reorderFrames, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout, 
     updateActiveFrameDuration, updateFrameDurationById, toggleTimingMode
   } = useAd();
   
@@ -127,6 +165,25 @@ export const Editor: React.FC = () => {
       setCustomW('');
       setCustomH('');
     }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('frameIndex', index.toString());
+    e.dataTransfer.effectAllowed = 'move';
+    // Visual touch
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+      e.preventDefault();
+      const fromIndex = parseInt(e.dataTransfer.getData('frameIndex'));
+      if (fromIndex !== index && !isNaN(fromIndex)) {
+          reorderFrames(fromIndex, index);
+      }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault(); // Necessary to allow dropping
   };
 
   const downloadBlob = (blob: Blob, filename: string) => {
@@ -370,51 +427,60 @@ export const Editor: React.FC = () => {
              + Add Tile
           </button>
         </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        
+        <div className="flex gap-2 overflow-x-auto pb-2 px-1">
           {state.frames.map((frame, index) => (
-             <div key={frame.id} className="relative group/frame flex flex-col">
+             <div 
+               key={frame.id} 
+               className={`relative group flex-shrink-0 transition-all duration-200`}
+               draggable
+               onDragStart={(e) => handleDragStart(e, index)}
+               onDrop={(e) => handleDrop(e, index)}
+               onDragOver={handleDragOver}
+             >
                 <button
-                onClick={() => setActiveFrame(frame.id)}
-                className={`relative flex flex-col items-center min-w-[3.5rem] p-1.5 rounded border transition-all ${
-                    frame.id === state.activeFrameId 
-                    ? 'border-blue-600 bg-blue-50 shadow-sm' 
-                    : 'border-gray-200 hover:bg-gray-50'
-                }`}
+                  onClick={() => setActiveFrame(frame.id)}
+                  className={`relative w-24 h-20 rounded-md border-2 overflow-hidden transition-all ${
+                      frame.id === state.activeFrameId 
+                      ? 'border-blue-600 shadow-md ring-1 ring-blue-100' 
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
                 >
-                <span className={`text-xs font-bold mb-3 ${frame.id === state.activeFrameId ? 'text-blue-700' : 'text-gray-600'}`}>
-                    #{index + 1}
-                </span>
-                <div className="flex items-center gap-1">
-                    <div onClick={(e) => { e.stopPropagation(); duplicateFrame(frame.id); }} className="p-1 text-gray-400 hover:text-blue-600 rounded-full hover:bg-blue-100 transition-colors" title="Duplicate Tile">
-                        <Copy size={10} />
-                    </div>
-                    {state.frames.length > 1 && (
-                    <div onClick={(e) => { e.stopPropagation(); removeFrame(frame.id); }} className="p-1 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-100 transition-colors" title="Delete Tile">
-                        <Trash2 size={10} />
-                    </div>
-                    )}
-                </div>
+                   <FrameThumbnail frame={frame} design={state.design} index={index} />
+                   
+                   {/* Active Indicator */}
+                   {frame.id === state.activeFrameId && (
+                     <div className="absolute inset-0 ring-2 ring-blue-600/20 pointer-events-none"></div>
+                   )}
                 </button>
-                
-                {/* Reorder Controls */}
-                {state.frames.length > 1 && (
-                    <div className="absolute -top-2 left-1/2 -translate-x-1/2 flex bg-white border border-gray-200 rounded-full shadow-sm opacity-0 group-hover/frame:opacity-100 transition-opacity">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); moveFrame(frame.id, 'left'); }}
-                            disabled={index === 0}
-                            className={`p-0.5 ${index === 0 ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}
-                        >
-                            <ArrowLeft size={10} />
-                        </button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); moveFrame(frame.id, 'right'); }}
-                            disabled={index === state.frames.length - 1}
-                            className={`p-0.5 ${index === state.frames.length - 1 ? 'text-gray-300' : 'text-gray-600 hover:text-blue-600'}`}
-                        >
-                            <ArrowRight size={10} />
-                        </button>
-                    </div>
-                )}
+
+                {/* Drag Handle */}
+                <div 
+                  className="absolute -top-1.5 left-1/2 -translate-x-1/2 bg-white border border-gray-200 shadow-sm rounded-full p-0.5 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity z-30"
+                  title="Drag to reorder"
+                >
+                   <GripVertical size={12} className="text-gray-500" />
+                </div>
+
+                {/* Overlay Actions (Hover) */}
+                <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-30">
+                     <button 
+                       onClick={(e) => { e.stopPropagation(); duplicateFrame(frame.id); }} 
+                       className="p-1 bg-white text-gray-500 hover:text-blue-600 rounded shadow-sm border border-gray-200" 
+                       title="Duplicate"
+                     >
+                        <Copy size={10} />
+                     </button>
+                     {state.frames.length > 1 && (
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); removeFrame(frame.id); }} 
+                        className="p-1 bg-white text-gray-500 hover:text-red-600 rounded shadow-sm border border-gray-200" 
+                        title="Delete"
+                      >
+                          <Trash2 size={10} />
+                      </button>
+                     )}
+                </div>
              </div>
           ))}
         </div>

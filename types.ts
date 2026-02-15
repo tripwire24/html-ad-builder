@@ -159,6 +159,7 @@ export interface AdContextType {
   duplicateFrame: (id: string) => void;
   removeFrame: (id: string) => void;
   moveFrame: (id: string, direction: 'left' | 'right') => void;
+  reorderFrames: (fromIndex: number, toIndex: number) => void; // New functionality
   setActiveFrame: (id: string) => void;
   updateFrameLayout: (layout: FrameLayout) => void;
   updateActiveFrameDuration: (duration: number | undefined) => void; 
