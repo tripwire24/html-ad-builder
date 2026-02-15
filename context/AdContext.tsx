@@ -1,5 +1,7 @@
+
 import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
-import { AdState, AdContextType, AdAssets, AdCopy, AdDesign, AdAnimation, AnimationPreset, AdSizeOverride, AdFrame, UtmParams, FrameLayout } from '../types';
+import { AdState, AdContextType, AdAssets, AssetItem, AdCopy, AdDesign, AdAnimation, AnimationPreset, AdSizeOverride, AdFrame, UtmParams, FrameLayout } from '../types';
+import { compressImage } from '../utils/compression';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
 
@@ -35,6 +37,7 @@ const createDefaultState = (id: string = generateId(), name: string = 'Variation
     frames: [frame1],
     activeFrameId: frame1.id,
     frameDuration: 3,
+    timingMode: 'global',
     design: {
       primaryColor: '#1e293b',
       accentColor: '#3b82f6',
@@ -53,6 +56,7 @@ const createDefaultState = (id: string = generateId(), name: string = 'Variation
     },
     animationKey: 0,
     sizeOverrides: {},
+    assetLibrary: [],
   };
 };
 
@@ -80,7 +84,14 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       return;
     }
     const newId = generateId();
-    const newState = { ...loadedState, id: newId, name: (loadedState.name || 'Imported') + ' (Imported)' };
+    // Ensure new properties exist if loading old project files
+    const newState = { 
+      ...loadedState, 
+      id: newId, 
+      name: (loadedState.name || 'Imported') + ' (Imported)',
+      timingMode: loadedState.timingMode || 'global',
+      assetLibrary: loadedState.assetLibrary || []
+    };
     setVariations(prev => [...prev, newState]);
     setActiveVariationId(newId);
   };
@@ -107,7 +118,8 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       name: `${current.name} (Copy)`,
       frames: clonedFrames,
       activeFrameId: clonedFrames[0].id,
-      animationKey: 0
+      animationKey: 0,
+      assetLibrary: [...(current.assetLibrary || [])]
     };
     
     setVariations(prev => [...prev, newState]);
@@ -214,8 +226,20 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     }));
   };
 
+  const updateFrameDurationById = (id: string, duration: number) => {
+    updateActiveState(prev => ({
+      ...prev,
+      frames: prev.frames.map(f => f.id === id ? { ...f, duration } : f),
+      animationKey: prev.animationKey + 1
+    }));
+  };
+
   const updateFrameDuration = (seconds: number) => {
     updateActiveState(prev => ({ ...prev, frameDuration: seconds, animationKey: prev.animationKey + 1 }));
+  };
+
+  const toggleTimingMode = (mode: 'global' | 'custom') => {
+    updateActiveState(prev => ({ ...prev, timingMode: mode }));
   };
 
   const toggleSize = (sizeKey: string) => {
@@ -254,6 +278,42 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         assets: { ...f.assets, [key]: value }
       } : f)
     }));
+  };
+
+  const addAssetsToLibrary = async (files: File[], category: AssetItem['category']) => {
+    const newAssets: AssetItem[] = [];
+    
+    // Process all files
+    for (const file of files) {
+      try {
+        const url = await compressImage(file);
+        newAssets.push({
+          id: generateId(),
+          url,
+          category,
+          timestamp: Date.now()
+        });
+      } catch (e) {
+        console.error("Failed to load asset", file.name, e);
+      }
+    }
+
+    if (newAssets.length === 0) return;
+
+    updateActiveState((prev) => {
+      // Also set the first one as active on the current frame if applicable
+      const firstAsset = newAssets[0];
+      const updatedFrames = prev.frames.map(f => f.id === prev.activeFrameId ? {
+        ...f,
+        assets: category !== 'general' ? { ...f.assets, [category]: firstAsset.url } : f.assets
+      } : f);
+
+      return {
+        ...prev,
+        assetLibrary: [...newAssets, ...(prev.assetLibrary || [])],
+        frames: updatedFrames
+      };
+    });
   };
 
   const updateCopy = (key: keyof AdCopy, value: string) => {
@@ -334,13 +394,16 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         setActiveFrame,
         updateFrameLayout,
         updateActiveFrameDuration,
+        updateFrameDurationById,
         toggleSize,
         addCustomSize,
         updateLandingPage,
         updateUtm,
         updateAsset,
+        addAssetsToLibrary,
         updateCopy,
         updateFrameDuration,
+        toggleTimingMode,
         updateDesign,
         updateAnimation,
         applyAnimationPreset,

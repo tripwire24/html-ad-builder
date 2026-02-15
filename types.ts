@@ -1,3 +1,4 @@
+
 export interface AdSize {
   width: number;
   height: number;
@@ -19,6 +20,13 @@ export interface AdAssets {
   logo: string | null; // Base64
   background: string | null; // Base64
   product: string | null; // Base64
+}
+
+export interface AssetItem {
+  id: string;
+  url: string;
+  category: 'background' | 'logo' | 'product' | 'general';
+  timestamp: number;
 }
 
 export interface AdCopy {
@@ -122,12 +130,18 @@ export interface AdState {
   
   frames: AdFrame[]; // Sequence of frames
   activeFrameId: string; // Currently editing frame
-  frameDuration: number; // Seconds each frame stays visible
+  
+  // Timing
+  frameDuration: number; // Global default seconds
+  timingMode: 'global' | 'custom'; // Switch between global slider or per-frame inputs
 
   design: AdDesign;
   animation: AdAnimation;
   animationKey: number; // Used to force re-render/replay
   sizeOverrides: Record<string, AdSizeOverride>; // Keyed by "widthxheight"
+  
+  // Assets
+  assetLibrary: AssetItem[]; 
 }
 
 export interface AdContextType {
@@ -148,6 +162,7 @@ export interface AdContextType {
   setActiveFrame: (id: string) => void;
   updateFrameLayout: (layout: FrameLayout) => void;
   updateActiveFrameDuration: (duration: number | undefined) => void; 
+  updateFrameDurationById: (id: string, duration: number) => void;
   
   // Content
   toggleSize: (sizeKey: string) => void;
@@ -157,8 +172,12 @@ export interface AdContextType {
   updateUtm: (key: keyof UtmParams, value: string) => void;
   
   updateAsset: (key: keyof AdAssets, value: string | null) => void; // Updates active frame
+  addAssetsToLibrary: (files: File[], category: AssetItem['category']) => Promise<void>;
   updateCopy: (key: keyof AdCopy, value: string) => void; // Updates active frame
-  updateFrameDuration: (seconds: number) => void;
+  
+  // Timing
+  updateFrameDuration: (seconds: number) => void; // Updates global
+  toggleTimingMode: (mode: 'global' | 'custom') => void;
 
   updateDesign: (key: keyof AdDesign, value: string | number | null | boolean) => void;
   updateAnimation: (key: keyof AdAnimation, value: string | number) => void;

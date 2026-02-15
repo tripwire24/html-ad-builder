@@ -1,8 +1,9 @@
+
 import React, { useRef, useState } from 'react';
 import { useAd } from '../context/AdContext';
-import { AVAILABLE_SIZES, ANIMATION_PRESETS, AdAssets, FrameLayout } from '../types';
+import { AVAILABLE_SIZES, ANIMATION_PRESETS, AdAssets, FrameLayout, AssetItem } from '../types';
 import { compressImage, base64ToBlob } from '../utils/compression';
-import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize, Clock, WifiOff, ArrowLeft, ArrowRight, Save, FolderOpen } from 'lucide-react';
+import { Trash2, Upload, RefreshCw, Layers, Layout, Image as ImageIcon, Palette, Type, Download, Plus, Search, Copy, ExternalLink, MoreVertical, Film, LayoutTemplate, PanelTop, PanelBottom, PanelLeft, PanelRight, Maximize, Clock, WifiOff, ArrowLeft, ArrowRight, Save, FolderOpen, Grid, Check } from 'lucide-react';
 import JSZip from 'jszip';
 import { generateBannerHTML } from '../utils/generators';
 
@@ -18,54 +19,85 @@ const TabButton: React.FC<{ active: boolean; onClick: () => void; icon: React.Re
   </button>
 );
 
-const AssetUploader: React.FC<{ 
+const AssetManager: React.FC<{ 
   label: string; 
   assetKey: keyof AdAssets; 
+  category: AssetItem['category'];
   currentValue: string | null; 
-}> = ({ label, assetKey, currentValue }) => {
-  const { updateAsset } = useAd();
+}> = ({ label, assetKey, category, currentValue }) => {
+  const { updateAsset, addAssetsToLibrary, state } = useAd();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      try {
-        const compressedBase64 = await compressImage(e.target.files[0]);
-        updateAsset(assetKey, compressedBase64);
-      } catch (err) {
-        console.error("Compression failed", err);
-        alert("Failed to process image.");
-      }
+    if (e.target.files && e.target.files.length > 0) {
+      await addAssetsToLibrary(Array.from(e.target.files), category);
     }
   };
 
+  // Filter library for this specific category
+  const libraryAssets = (state.assetLibrary || []).filter(a => a.category === category);
+
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-4">
       <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 flex justify-between items-center">
         <span className="text-xs font-semibold text-gray-700">{label}</span>
         {currentValue && (
            <div className="flex gap-1">
-             <button onClick={() => fileInputRef.current?.click()} className="text-blue-600 hover:text-blue-800"><RefreshCw size={14}/></button>
              <button onClick={() => updateAsset(assetKey, null)} className="text-red-600 hover:text-red-800"><Trash2 size={14}/></button>
            </div>
         )}
       </div>
       
-      <div className="p-3">
+      {/* Current Asset Preview */}
+      <div className="p-3 bg-white">
         {currentValue ? (
-          <div className="h-24 w-full flex items-center justify-center bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmZmZmIi8+CjxwYXRoIGQ9Ik0wIDBMOCA4Wk04IDBMMCA4WiIgc3Ryb2tlPSIjZWVlZWVlIiBzdHJva2Utd2lkdGg9IjEiLz4KPC9zdmc+')]">
-             <img src={currentValue} alt={label} className="max-h-full max-w-full object-contain shadow-sm" />
+          <div className="h-32 w-full flex items-center justify-center bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSIjZmZmZmZmIi8+CjxwYXRoIGQ9Ik0wIDBMOCA4Wk04IDBMMCA4WiIgc3Ryb2tlPSIjZWVlZWVlIiBzdHJva2Utd2lkdGg9IjEiLz4KPC9zdmc+')] rounded border border-gray-200">
+             <img src={currentValue} alt={label} className="max-h-full max-w-full object-contain" />
           </div>
         ) : (
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full h-24 border-2 border-dashed border-gray-300 rounded hover:border-blue-400 hover:bg-blue-50 flex flex-col items-center justify-center text-gray-400 transition-colors"
-          >
-            <Upload size={20} className="mb-1" />
-            <span className="text-xs">Select Image</span>
-          </button>
+          <div className="h-24 w-full border-2 border-dashed border-gray-200 rounded flex flex-col items-center justify-center text-gray-300">
+            <ImageIcon size={24} />
+            <span className="text-[10px] mt-1">Empty Slot</span>
+          </div>
         )}
       </div>
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/png, image/jpeg" className="hidden" />
+
+      {/* Action Bar */}
+      <div className="px-3 pb-3">
+         <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full py-2 border border-blue-200 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 flex items-center justify-center gap-2 text-xs font-medium transition-colors"
+          >
+            <Upload size={14} />
+            Upload New (Batch Supported)
+          </button>
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/png, image/jpeg" className="hidden" multiple />
+      </div>
+
+      {/* Library Grid */}
+      {libraryAssets.length > 0 && (
+        <div className="border-t border-gray-100 bg-gray-50/50 p-2">
+           <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-2 pl-1">
+             <Grid size={10} /> Library ({libraryAssets.length})
+           </div>
+           <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto pr-1">
+             {libraryAssets.map((asset) => (
+                <button
+                  key={asset.id}
+                  onClick={() => updateAsset(assetKey, asset.url)}
+                  className={`relative aspect-square rounded border overflow-hidden bg-white hover:border-blue-400 transition-all ${currentValue === asset.url ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-200'}`}
+                >
+                   <img src={asset.url} className="w-full h-full object-cover" alt="" />
+                   {currentValue === asset.url && (
+                     <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                       <div className="bg-blue-600 rounded-full p-0.5"><Check size={10} className="text-white"/></div>
+                     </div>
+                   )}
+                </button>
+             ))}
+           </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -74,7 +106,8 @@ export const Editor: React.FC = () => {
   const { 
     state, toggleSize, addCustomSize, updateCopy, updateDesign, updateAnimation, applyAnimationPreset,
     variations, activeVariationId, setActiveVariation, addVariation, removeVariation, updateVariationName, loadProject,
-    addFrame, duplicateFrame, removeFrame, moveFrame, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout, updateActiveFrameDuration
+    addFrame, duplicateFrame, removeFrame, moveFrame, setActiveFrame, updateFrameDuration, updateLandingPage, updateUtm, updateFrameLayout, 
+    updateActiveFrameDuration, updateFrameDurationById, toggleTimingMode
   } = useAd();
   
   const [activeTab, setActiveTab] = useState<'layout' | 'assets' | 'design' | 'content'>('layout');
@@ -395,7 +428,6 @@ export const Editor: React.FC = () => {
         <TabButton active={activeTab === 'content'} onClick={() => setActiveTab('content')} icon={<Type size={18} />} label="Content" />
       </div>
 
-      {/* ... Rest of the Editor content remains effectively the same, just keeping it here for context if needed ... */}
       <div className="flex-1 overflow-y-auto p-5 bg-gray-50/50">
         
         {/* LAYOUT TAB */}
@@ -548,9 +580,25 @@ export const Editor: React.FC = () => {
              <div className="bg-yellow-50 p-2 rounded border border-yellow-100 mb-2 text-[11px] text-yellow-800 flex items-center gap-2">
                <Film size={12}/> Editing Assets for <strong>Frame {activeFrameIndex + 1}</strong>
              </div>
-             <AssetUploader label="Background Image" assetKey="background" currentValue={activeFrame.assets.background} />
-             <AssetUploader label="Logo" assetKey="logo" currentValue={activeFrame.assets.logo} />
-             <AssetUploader label="Product Image" assetKey="product" currentValue={activeFrame.assets.product} />
+             
+             <AssetManager 
+               label="Background Image" 
+               assetKey="background" 
+               category="background"
+               currentValue={activeFrame.assets.background} 
+             />
+             <AssetManager 
+               label="Logo" 
+               assetKey="logo" 
+               category="logo"
+               currentValue={activeFrame.assets.logo} 
+             />
+             <AssetManager 
+               label="Product Image" 
+               assetKey="product" 
+               category="product"
+               currentValue={activeFrame.assets.product} 
+             />
           </div>
         )}
 
@@ -674,9 +722,9 @@ export const Editor: React.FC = () => {
             </section>
 
              <section>
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Animation</h3>
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Animation & Timing</h3>
               
-              <div className="mb-4">
+              <div className="mb-6">
                  <label className="text-xs font-medium text-gray-600 mb-1 block">Transition Effect</label>
                  <select 
                    value={state.animation.effect}
@@ -689,22 +737,57 @@ export const Editor: React.FC = () => {
                  </select>
               </div>
 
-               <div className="mb-4">
-               <div className="flex justify-between mb-1">
-                 <label className="text-xs font-medium text-gray-600">Default Frame Duration</label>
-                 <span className="text-xs text-gray-400">{state.frameDuration}s</span>
+               <div className="bg-gray-50 rounded border border-gray-200 p-3">
+                  <div className="flex items-center justify-between mb-4">
+                     <span className="text-xs font-bold text-gray-600 flex items-center gap-1">
+                        <Clock size={12}/> Frame Durations
+                     </span>
+                     <div className="flex bg-white rounded border border-gray-300 overflow-hidden">
+                        <button 
+                           onClick={() => toggleTimingMode('global')}
+                           className={`px-2 py-1 text-[10px] font-medium ${state.timingMode === 'global' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                           Uniform
+                        </button>
+                        <button 
+                           onClick={() => toggleTimingMode('custom')}
+                           className={`px-2 py-1 text-[10px] font-medium ${state.timingMode === 'custom' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'}`}
+                        >
+                           Individual
+                        </button>
+                     </div>
+                  </div>
+                  
+                  {state.timingMode === 'global' ? (
+                     <div>
+                        <div className="flex justify-between mb-1">
+                           <label className="text-xs text-gray-500">All frames duration</label>
+                           <span className="text-xs text-gray-900 font-mono">{state.frameDuration}s</span>
+                        </div>
+                        <input 
+                           type="range" min="1" max="10" step="0.5" 
+                           value={state.frameDuration}
+                           onChange={(e) => updateFrameDuration(parseFloat(e.target.value))}
+                           className="w-full accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                        />
+                     </div>
+                  ) : (
+                     <div className="space-y-2">
+                        {state.frames.map((frame, idx) => (
+                           <div key={frame.id} className="flex items-center gap-2">
+                              <span className="text-[10px] text-gray-500 w-12">Frame {idx + 1}</span>
+                              <input 
+                                 type="range" min="1" max="10" step="0.5"
+                                 value={frame.duration ?? state.frameDuration}
+                                 onChange={(e) => updateFrameDurationById(frame.id, parseFloat(e.target.value))}
+                                 className="flex-1 accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                              />
+                              <span className="text-[10px] font-mono w-8 text-right">{(frame.duration ?? state.frameDuration).toFixed(1)}s</span>
+                           </div>
+                        ))}
+                     </div>
+                  )}
                </div>
-               <input 
-                 type="range" 
-                 min="1" 
-                 max="10" 
-                 step="0.5" 
-                 value={state.frameDuration}
-                 onChange={(e) => updateFrameDuration(parseFloat(e.target.value))}
-                 className="w-full accent-blue-600 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-               />
-               <p className="text-[10px] text-gray-400 mt-1">Global setting. Can be overridden per frame.</p>
-            </div>
             </section>
           </div>
         )}
@@ -714,29 +797,6 @@ export const Editor: React.FC = () => {
           <div className="space-y-6">
              <div className="bg-yellow-50 p-2 rounded border border-yellow-100 text-[11px] text-yellow-800 flex items-center gap-2">
                <Film size={12}/> Editing Content for <strong>Frame {activeFrameIndex + 1}</strong>
-             </div>
-             
-             {/* Frame Duration Override */}
-             <div>
-                <div className="flex justify-between items-center mb-1">
-                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                     <Clock size={12} /> Duration override
-                   </label>
-                   {activeFrame.duration !== undefined && (
-                     <button onClick={() => updateActiveFrameDuration(undefined)} className="text-[10px] text-red-500 hover:underline">Reset to default</button>
-                   )}
-                </div>
-                <div className="flex items-center gap-2">
-                   <input 
-                     type="number" 
-                     min="1" max="60" step="0.5"
-                     value={activeFrame.duration !== undefined ? activeFrame.duration : ''}
-                     onChange={(e) => updateActiveFrameDuration(e.target.value ? parseFloat(e.target.value) : undefined)}
-                     className="w-20 px-2 py-1 border border-gray-300 rounded text-sm bg-white text-gray-900"
-                     placeholder={`${state.frameDuration}`}
-                   />
-                   <span className="text-xs text-gray-400">seconds (Default: {state.frameDuration}s)</span>
-                </div>
              </div>
 
              {/* Frame Layout Selector */}
