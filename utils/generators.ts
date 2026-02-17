@@ -1,3 +1,4 @@
+
 import { AdState, FrameLayout } from '../types';
 
 export const generateBannerHTML = (
@@ -77,7 +78,8 @@ export const generateBannerHTML = (
 
   // Animation Keyframes
   let animationKeyframes = '';
-  const animDuration = animation.duration;
+  // Force 0 duration if effect is none to prevent accidental fade-ins
+  const animDuration = animation.effect === 'none' ? 0 : animation.duration;
 
   if (animation.effect !== 'none') {
       let fromTransform = '';

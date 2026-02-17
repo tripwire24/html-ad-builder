@@ -794,7 +794,14 @@ export const Editor: React.FC = () => {
                  <label className="text-xs font-medium text-gray-600 mb-1 block">Transition Effect</label>
                  <select 
                    value={state.animation.effect}
-                   onChange={(e) => updateAnimation('effect', e.target.value)}
+                   onChange={(e) => {
+                     const preset = ANIMATION_PRESETS.find(p => p.effect === e.target.value);
+                     if (preset) {
+                       applyAnimationPreset(preset);
+                     } else {
+                       updateAnimation('effect', e.target.value);
+                     }
+                   }}
                    className="w-full px-3 py-2 border rounded-md text-sm bg-white text-gray-900 shadow-sm"
                  >
                    {ANIMATION_PRESETS.map(p => (
