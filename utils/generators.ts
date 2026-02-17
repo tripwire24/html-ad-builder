@@ -187,6 +187,8 @@ export const generateBannerHTML = (
     cumulativeDelay += currentDuration;
   });
 
+  const totalDurationMs = cumulativeDelay * 1000;
+
   // HTML Construction
   const framesHTML = frames.map((frame, i) => {
     const bgSrc = getSrc(frame.assets.background);
@@ -198,8 +200,11 @@ export const generateBannerHTML = (
     const bgStyle = `transform: ${bgTransform}; transform-origin: center center;`;
     const prodStyle = `transform: ${prodTransform}; transform-origin: center center;`;
 
+    // Add .frame-animated class to frames other than the first one
+    const animatedClass = i > 0 ? 'frame-animated' : '';
+
     return `
-      <div id="frame-${i}" class="frame layout-${frame.layout}">
+      <div id="frame-${i}" class="frame layout-${frame.layout} ${animatedClass}">
         ${bgSrc ? `<img src="${bgSrc}" class="bg-image" alt="" style="${bgStyle}" />` : ''}
         ${logoSrc ? `<img src="${logoSrc}" class="logo" alt="Logo" />` : ''}
         <div class="content-wrapper">
@@ -275,6 +280,20 @@ export const generateBannerHTML = (
   ${layoutCSS}
   ${frameCSS}
 </style>
+<script>
+  window.onload = function() {
+    var totalDuration = ${totalDurationMs};
+    function resetAnimations() {
+      var frames = document.querySelectorAll('.frame-animated');
+      frames.forEach(function(el) {
+        el.style.animation = 'none';
+        el.offsetHeight; /* trigger reflow */
+        el.style.animation = '';
+      });
+    }
+    setInterval(resetAnimations, totalDuration);
+  };
+</script>
 </head>
 <body>
   <div id="ad-container" onclick="window.open(window.clickTag)">
