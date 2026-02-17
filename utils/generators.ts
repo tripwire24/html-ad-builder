@@ -79,9 +79,11 @@ export const generateBannerHTML = (
   // Animation Keyframes
   let animationKeyframes = '';
   // Force 0 duration if effect is none to prevent accidental fade-ins
-  const animDuration = animation.effect === 'none' ? 0 : animation.duration;
+  const isNone = animation.effect === 'none';
+  const animDuration = isNone ? 0 : animation.duration;
+  const animTiming = isNone ? 'steps(1)' : 'ease-out';
 
-  if (animation.effect !== 'none') {
+  if (!isNone) {
       let fromTransform = '';
       let toTransform = 'transform: translate(0,0) scale(1);';
       let fromOpacity = '0';
@@ -97,11 +99,12 @@ export const generateBannerHTML = (
       }
       animationKeyframes = `
         @keyframes enter { 
-          from { opacity: ${fromOpacity}; ${fromTransform} } 
-          to { opacity: 1; ${toTransform} } 
+          0% { opacity: ${fromOpacity}; ${fromTransform} } 
+          100% { opacity: 1; ${toTransform} } 
         }`;
   } else {
-      animationKeyframes = `@keyframes enter { from { opacity: 0; } to { opacity: 1; } }`;
+      // Instant appearance: from opacity 1 ensures that as soon as animation delay is over, it is fully visible
+      animationKeyframes = `@keyframes enter { 0% { opacity: 1; } 100% { opacity: 1; } }`;
   }
 
   // Layout CSS Blocks
@@ -176,7 +179,7 @@ export const generateBannerHTML = (
         #frame-${index} {
           z-index: ${10 + index};
           opacity: 0; 
-          animation: enter ${animDuration}s ease-out forwards;
+          animation: enter ${animDuration}s ${animTiming} forwards;
           animation-delay: ${cumulativeDelay}s;
         }
       `;
